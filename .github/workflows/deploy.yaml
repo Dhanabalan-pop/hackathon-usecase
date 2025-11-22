@@ -12,7 +12,8 @@ env:
   GKE_ZONE: 'us-central1-c' # TODO: update to your cluster zone
   DEPLOYMENT_NAME: 'gke-test' # TODO: update to your deployment name
   REPOSITORY: 'samples' # TODO: update to your Artifact Registry docker repository name
-  IMAGE: 'static-site'
+  IMAGE_Patient: 'patient'
+  IMAGE_APPOINTMENT: 'appointment'
   WORKLOAD_IDENTITY_PROVIDER: 'projects/123456789/locations/global/workloadIdentityPools/my-pool/providers/my-provider' # TODO: update to your workload identity provider
 
 jobs:
@@ -54,18 +55,30 @@ jobs:
           cluster_name: '${{ env.GKE_CLUSTER }}'
           location: '${{ env.GKE_ZONE }}'
 
-      # Build the Docker image
+      # Build the Docker image Patient Image
       - name: 'Build and push Docker container'
         run: |-
-          DOCKER_TAG="${GAR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${IMAGE}:${GITHUB_SHA}"
+          DOCKER_TAG_1="${GAR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${IMAGE}:${GITHUB_SHA}"
 
           docker build \
-            --tag "${DOCKER_TAG}" \
+            --tag "${DOCKER_TAG_1}" \
             --build-arg GITHUB_SHA="${GITHUB_SHA}" \
             --build-arg GITHUB_REF="${GITHUB_REF}" \
             .
 
-          docker push "${DOCKER_TAG}"
+          docker push "${DOCKER_TAG_1}"
+    # Build the Docker image Appointment image
+      - name: 'Build and push Docker container'
+        run: |-
+          DOCKER_TAG_2="${GAR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${IMAGE}:${GITHUB_SHA}"
+
+          docker build \
+            --tag "${DOCKER_TAG_2}" \
+            --build-arg GITHUB_SHA="${GITHUB_SHA}" \
+            --build-arg GITHUB_REF="${GITHUB_REF}" \
+            .
+
+          docker push "${DOCKER_TAG_2}"
 
 
       # Deploy the Docker image to the GKE cluster
@@ -74,9 +87,7 @@ jobs:
           # replacing the image name in the k8s template
           helm upgrade --install patient-app ./patient \
             --namespace default \
-            --set image.repository=us-central1-docker.pkg.dev/your-project-id/your-repository/patient-service \
-            --wait
+            --set image.tag="${GITHUB_REF}" \
           helm upgrade --install appointment-app ./appointment \
             --namespace default \
-            --set image.repository=us-central1-docker.pkg.dev/your-project-id/your-repository/patient-service \
-            --wait
+            --set image.tag="${GITHUB_REF}" \
