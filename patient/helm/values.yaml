@@ -1,0 +1,13 @@
+replicaCount: 1
+image:
+  # UPDATE THIS with your actual GCP Artifact Registry path
+  repository: us-central1-docker.pkg.dev/your-project-id/your-repository/patient-service 
+  pullPolicy: IfNotPresent
+  tag: "1.0.0" 
+service:
+  type: ClusterIP 
+  port: 80 
+  targetPort: 3000 # Your Node.js app's port
+env:
+  - name: PORT
+    value: "3000"
