@@ -1,0 +1,58 @@
+name: Terraform Multi-Environment Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - staging
+      - '*' # Runs on all branches for dev testing
+  pull_request:
+    branches:
+      - main
+      - staging
+
+jobs:
+  terraform:
+    name: "Terraform - ${{ github.ref_name }}"
+    runs-on: ubuntu-latest
+    
+    # Define environment and backend based on the target branch
+    env:
+      ENVIRONMENT: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+      TF_VARS_FILE: ${{ github.ref_name == 'main' && 'prod.tfvars' || 'dev.tfvars' }}
+      TF_WORKING_DIR: ./terraform
+      TF_STATE_PREFIX: gke/${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+
+    steps:
+      - name:  Checkout code
+        uses: actions/checkout@v4
+
+      # --- 1. Authentication and Setup ---
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          # Set up credentials for the provider block to run
+          
+      - name:  Setup Terraform CLI
+        uses: hashicorp/setup-terraform@v3
+
+      # --- 2. Initialize (Init) ---
+      - name:  Terraform Init (${{ env.TF_WORKING_DIR }})
+        id: init
+        run: terraform init -backend-config="prefix=${{ env.TF_STATE_PREFIX }}"
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+      # --- 3. Plan on PRs (or pushes to non-main/staging) ---
+      - name:  Terraform Plan
+        id: plan
+        if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_name != 'main' && github.ref_name != 'staging')
+        run: terraform plan -no-color
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        
+      # --- 4. Apply (Only on push/merge to main or staging) ---
+      - name:  Terraform Apply
+        id: apply
+        if: github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'staging')
+        run: terraform apply -auto-approve
+        working-directory: ${{ env.TF_WORKING_DIR }}
